@@ -1,0 +1,4 @@
+# ESP-IDF builds with GCC: flags clang does not know are dropped.
+CompileFlags:
+  CompilationDatabase: build
+  Remove: [-mlongcalls, -fstrict-volatile-bitfields, -fno-tree-switch-conversion, -mtext-section-literals, -fno-shrink-wrap, -march=*, -mabi=*]

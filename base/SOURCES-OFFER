@@ -1,0 +1,15 @@
+Written offer for source code
+
+The images ghcr.io/picodev-sas/dev-<family> carry binaries under the GNU GPL and LGPL
+(versions 2 and 3): the compilers, debuggers, flashing tools and emulators listed in
+SOURCES.md of https://github.com/PICODEV-SAS/picodev-devcontainers, and Debian packages,
+at the versions written in /opt/picodev/versions.json.
+
+For at least three years after the last time we distribute an image, Picodev SAS will
+give anyone who asks at contact@picodev.fr a complete machine-readable copy of the
+corresponding source code of these binaries, on a medium customarily used for software
+interchange, for a charge no more than our cost of physically performing that
+distribution (GPLv2 section 3(b), GPLv3 section 6(b), LGPLv2.1 section 6(c)).
+
+The sources of the Debian packages are also at https://snapshot.debian.org, at the
+versions in /opt/picodev/versions.json.

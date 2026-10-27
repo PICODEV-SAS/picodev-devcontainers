@@ -1,0 +1,1 @@
+nrf52840dk nucleo-l552ze-q nucleo-g071rb stm32f4-discovery

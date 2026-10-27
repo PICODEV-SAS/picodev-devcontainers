@@ -1,0 +1,20 @@
+picodev-devcontainers
+Copyright 2026 Picodev SAS
+
+Our code (Dockerfiles, scripts, tests) is under the Apache License 2.0 (LICENSE);
+the starter projects (starters/) are under the MIT licence (their LICENSE).
+
+The images bundle third-party software, each under its own licence: README.adoc
+lists every component and its licence, SOURCES.md the corresponding source of the
+GPL binaries that do not come from Debian packages. Some components may only be
+used with the vendor's chips:
+
+- STM32Cube CMSIS device files (Apache-2.0) and HAL drivers (BSD-3-Clause), from
+  STMicroelectronics' GitHub repositories;
+- nRF Connect SDK and nrfxlib (LicenseRef-Nordic-5-Clause): only with a Nordic
+  Semiconductor integrated circuit; binaries must not be reverse engineered;
+- nrf_cc310_bl (ARM Object Code and Header Files Licence): only for applications
+  targeted at an ARM-based product.
+
+Not included, installed by the user on first start under the vendor's licence:
+STM32CubeCLT (ST SLA0048), nrfutil (LicenseRef-Nordic-1-Clause), SEGGER J-Link.

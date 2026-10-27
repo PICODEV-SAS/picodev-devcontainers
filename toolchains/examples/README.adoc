@@ -1,0 +1,8 @@
+= Exemples des chaînes de compilation
+
+Exemples ouverts (aucun défi), compilés par `make test` et, au moment de la
+construction des images, par `tc prewarm` : leurs objets deviennent le cache de
+départ, en lecture seule, de toutes les compilations suivantes.
+
+Chaque exemple : les sources, et `board.txt` (les cartes, séparées par des blancs).
+La famille (l'image) se déduit de la carte et du type de projet.

@@ -1,0 +1,23 @@
+{
+  "name": "Picodev nRF52 (nRF52840 DK, Zephyr)",
+  "image": "ghcr.io/picodev-sas/dev-nrf52:2026.2",
+  "remoteUser": "picodev",
+  // Lets the container reach a GDB server on the host (Linux; Docker Desktop has it already).
+  "runArgs": ["--add-host=host.docker.internal:host-gateway"],
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "nordic-semiconductor.nrf-connect-extension-pack",
+        "marus25.cortex-debug",
+        "llvm-vs-code-extensions.vscode-clangd",
+        "ms-vscode.vscode-serial-monitor",
+        "picodev.picodev-lab"
+      ],
+      "settings": {
+        "cortex-debug.gdbPath": "/opt/zephyr-sdk-1.0.1/arm-zephyr-eabi/bin/arm-zephyr-eabi-gdb",
+        "clangd.arguments": ["--query-driver=/opt/zephyr-sdk-*/arm-zephyr-eabi/bin/arm-zephyr-eabi-*"]
+      }
+    }
+  }
+  // Linux, a DK on USB: add "--device=/dev/bus/usb" and "--device=/dev/ttyACM0" to runArgs.
+}

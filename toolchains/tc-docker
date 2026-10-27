@@ -1,0 +1,67 @@
+#!/bin/bash
+# Run one build in a toolchain image, inside the guard:
+#   tc-docker <family> <board> <sources dir or archive> [tc build options...]
+# e.g. tc-docker zephyr nrf52840dk examples/zephyr-hello --out /tmp/out
+# The result JSON goes to stdout; with --out DIR, the host decodes it into
+# DIR/firmware.*, build.log and result.json (nothing of the host is mounted).
+#
+# The guard (the lab's rules, picodev/ of the fork, applied to a container):
+# no network, read-only root but /tmp, no capability, no new privilege,
+# unprivileged user, bounded memory, CPU, processes and /tmp.
+# TC_PLATFORM (linux/arm64) picks the image of another architecture.
+# TC_CACHE_VOLUME names a Docker volume for the dependency cache: one per
+# tenant, never shared between tenants (a build can write anything in it).
+set -euo pipefail
+[ $# -ge 3 ] || { sed -n '2,4p' "$0" >&2; exit 2; }
+family=$1 board=$2 src=$3
+shift 3
+image=${TC_IMAGE_PREFIX:-picodev-lab-toolchain}-$family:${TC_TAG:-dev}
+
+out=
+args=
+while [ $# -gt 0 ]; do
+  case $1 in
+    --out) out=$2; shift 2 ;;
+    *) args="$args $1"; shift ;;
+  esac
+done
+cache=
+[ -n "${TC_CACHE_VOLUME:-}" ] && cache="--mount type=volume,src=$TC_CACHE_VOLUME,dst=/cache"
+
+envs=()
+for v in TC_TIMEOUT TC_SEED TC_JOBS TC_MEMORY_MB; do
+  [ -n "${!v:-}" ] && envs+=(-e "$v=${!v}")
+done
+
+if [ -d "$src" ]; then
+  feed() { tar -C "$src" -cf - .; }
+else
+  feed() { cat "$src"; }
+fi
+
+save() {
+  if [ -z "$out" ]; then cat; return; fi
+  python3 -c '
+import base64, json, pathlib, sys
+out = pathlib.Path(sys.argv[1]); out.mkdir(parents=True, exist_ok=True)
+result = json.load(sys.stdin)
+for fmt, art in result["artifacts"].items():
+    (out / f"firmware.{fmt}").write_bytes(base64.b64decode(art.pop("b64")))
+(out / "build.log").write_text(result["log"])
+(out / "result.json").write_text(json.dumps(result, indent=1))
+json.dump(result, sys.stdout); print()
+' "$out"
+}
+
+# shellcheck disable=SC2086
+feed | docker run --rm -i ${TC_PLATFORM:+--platform "$TC_PLATFORM"} \
+  --network none \
+  --read-only --tmpfs /tmp:rw,exec,size=${TC_TMP_SIZE:-4g} \
+  --cap-drop ALL --security-opt no-new-privileges \
+  --user 10001:10001 \
+  --memory "${TC_MEMORY:-4g}" --memory-swap "${TC_MEMORY:-4g}" \
+  --cpus "${TC_CPUS:-4}" --pids-limit "${TC_PIDS:-512}" \
+  --ulimit nofile=4096:4096 \
+  "${envs[@]}" \
+  $cache \
+  "$image" build --board "$board" $args | save

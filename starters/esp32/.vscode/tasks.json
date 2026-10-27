@@ -1,0 +1,33 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Build",
+      "type": "shell",
+      "command": "idf.py set-target ${input:target} build",
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": "$gcc"
+    },
+    {
+      "label": "Flash and monitor (RFC2217, esp_rfc2217_server on the host)",
+      "type": "shell",
+      "command": "idf.py -p 'rfc2217://host.docker.internal:4000?ign_set_control' flash monitor",
+      "problemMatcher": []
+    },
+    {
+      "label": "Run in QEMU",
+      "type": "shell",
+      "command": "idf.py qemu monitor",
+      "problemMatcher": []
+    },
+    {
+      "label": "Picodev: send to the bench (ESP32-DevKitC)",
+      "type": "shell",
+      "command": "picodev send",
+      "problemMatcher": "$gcc"
+    }
+  ],
+  "inputs": [
+    { "id": "target", "type": "pickString", "description": "Chip", "options": ["esp32", "esp32s3", "esp32c3"], "default": "esp32" }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Build (Zephyr)",
+      "type": "shell",
+      "command": "west build -b nrf52840dk/nrf52840 -d build app",
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": "$gcc"
+    },
+    {
+      "label": "Build (nRF Connect SDK)",
+      "type": "shell",
+      "command": ". /opt/ncs/activate && west build -b nrf52840dk/nrf52840 -d build-ncs app",
+      "problemMatcher": "$gcc"
+    },
+    {
+      "label": "Flash (OpenOCD, DK on USB)",
+      "type": "shell",
+      "command": "west flash -d build --runner openocd",
+      "problemMatcher": []
+    },
+    {
+      "label": "Picodev: send to the bench",
+      "type": "shell",
+      "command": "picodev send app",
+      "problemMatcher": "$gcc"
+    }
+  ]
+}

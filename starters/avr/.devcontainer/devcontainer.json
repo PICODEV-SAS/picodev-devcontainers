@@ -1,0 +1,19 @@
+{
+  "name": "Picodev AVR (Arduino Nano, Uno)",
+  "image": "ghcr.io/picodev-sas/dev-avr:2026.2",
+  "remoteUser": "picodev",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "llvm-vs-code-extensions.vscode-clangd",
+        "ms-vscode.vscode-serial-monitor",
+        "picodev.picodev-lab"
+      ],
+      "settings": {
+        "clangd.arguments": ["--query-driver=/opt/arduino/packages/arduino/tools/avr-gcc/*/bin/avr-*"]
+      }
+    }
+  }
+  // Linux, a board on USB: uncomment and name its port (docs: "Flasher une vraie carte").
+  // "runArgs": ["--device=/dev/ttyUSB0"]
+}

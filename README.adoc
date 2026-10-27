@@ -1,0 +1,239 @@
+= picodev-devcontainers
+:toc: macro
+
+Environnements de développement de Picodev CTF : une image par famille de
+microcontrôleurs, à ouvrir depuis VS Code en *Dev Containers* ou en *Remote-SSH*, et
+un projet de départ par famille (`starters/`, aussi publié seul :
+`PICODEV-SAS/picodev-starter-<famille>`).
+
+toc::[]
+
+== Images
+
+`ghcr.io/picodev-sas/dev-<famille>:2026.2`, paquets publics (aucune connexion à GHCR),
+amd64 et arm64, signés avec cosign. Chaque image part de l'image de compilation de sa
+famille (`toolchains/`, tiré de picodev-lab-workers au commit épinglé dans le `Makefile`) : ce qui compile dans le conteneur compile au service de
+compilation Picodev, avec les mêmes versions.
+
+[cols="1,1,4,1", options="header"]
+|===
+|Image |Part de |Contenu |Projet de départ
+
+|`dev-base`
+|Debian trixie
+|git, Python 3.13, CMake, Ninja, gcc (tests sur l'hôte), clangd, gdb-multiarch, picocom,
+serveur SSH (clés seulement), utilisateur `picodev` (UID 1000, sudo)
+|–
+
+|`dev-avr`
+|`picodev-lab-toolchain-avr`
+|+ arduino-cli 1.5.1, cœur `arduino:avr@1.8.6` (avr-gcc 7.3.0), bibliothèque Servo, avrdude, commande
+`picodev` (compile et envoie au banc du CTF)
+|`starters/avr` (Nano, Uno)
+
+|`dev-esp32`
+|`picodev-lab-toolchain-esp`
+|+ ESP-IDF v5.5.6 (esp32, esp32s3, esp32c3), cœur Arduino ESP32 3.3.12, OpenOCD ESP32,
+GDB, QEMU d'Espressif
+|`starters/esp32`
+
+|`dev-stm32`
+|`picodev-lab-toolchain-arm`
+|+ Arm GNU Toolchain 14.3.rel1, CMSIS 6.3.0, CMSIS device et HAL des séries F4, G0, L5,
+OpenOCD, pyOCD, packs CMSIS (cibles pyOCD, SVD)
+|`starters/stm32` (Nucleo-F446RE, Nucleo-G071RB)
+
+|`dev-nrf52`
+|`picodev-lab-toolchain-zephyr`
+|+ Zephyr v4.4.2 (espace de travail `west` prêt), SDK Zephyr 1.0.1 (ARM), nRF Connect SDK
+v3.4.1, OpenOCD, pyOCD
+|`starters/nrf52` (nRF52840 DK)
+|===
+
+Versions exactes de tout ce qu'une image contient : `/opt/picodev/versions.json`.
+Rien de secret dans les images : ni défi, ni solution, ni jeton, ni clé (les clés
+d'hôte SSH sont créées au démarrage de chaque conteneur).
+
+== Se servir d'une image
+
+* *Dev Containers* : ouvrir un projet de départ, « Reopen in Container ».
+* *Remote-SSH* :
++
+----
+docker run -d --name picodev-avr -p 127.0.0.1:2222:22 \
+  -e SSH_AUTHORIZED_KEYS="$(cat ~/.ssh/id_ed25519.pub)" ghcr.io/picodev-sas/dev-avr:2026.2
+ssh -p 2222 picodev@127.0.0.1
+----
++
+puis, dans VS Code, « Remote-SSH: Connect to Host… » vers `picodev@127.0.0.1:2222`.
+
+== Licences
+
+Notre code (Dockerfiles, scripts, tests) : Apache-2.0 (`LICENSE`, `NOTICE`). Projets de
+départ : MIT. Binaires GPL des fabricants et leurs sources : `SOURCES.md` ; offre
+écrite pour la source de tous les binaires GPL et LGPL des images, Debian compris :
+`base/SOURCES-OFFER`, aussi dans chaque image (`/opt/picodev/SOURCES-OFFER`).
+
+Vérifier la signature d'une image :
+
+----
+cosign verify ghcr.io/picodev-sas/dev-avr:2026.2 \
+  --certificate-identity-regexp '^https://github.com/PICODEV-SAS/picodev-devcontainers/' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+----
+
+=== Inclus dans les images
+
+[cols="2,1,2,3", options="header"]
+|===
+|Composant |Image |Licence |Remarque
+
+|Debian (paquets), dont git, Python, CMake, Ninja, gcc, clangd, gdb-multiarch, OpenSSH, OpenOCD
+|toutes
+|celle de chaque paquet (GPL, BSD, MIT, Apache…)
+|sources dans l'archive Debian
+
+|`tc` (interface de compilation, M3)
+|toutes
+|Apache-2.0
+|picodev-lab-workers
+
+|ccache 4.14.2
+|toutes
+|GPL-3.0
+|
+
+|arduino-cli 1.5.1
+|avr, esp32
+|GPL-3.0
+|
+
+|Cœur `arduino:avr` 1.8.6, Servo 1.2.2
+|avr
+|LGPL-2.1
+|
+
+|avr-gcc 7.3.0, avrdude 6.3
+|avr
+|GPL-3.0, GPL-2.0
+|sources : `SOURCES.md`
+
+|ESP-IDF v5.5.6
+|esp32
+|Apache-2.0 (quelques composants sous d'autres licences libres, listés par ESP-IDF)
+|
+
+|Compilateurs, GDB, OpenOCD, QEMU, esptool d'Espressif
+|esp32
+|GPL-2.0 / GPL-3.0
+|sources : `SOURCES.md`
+
+|Cœur Arduino ESP32 3.3.12
+|esp32
+|LGPL-2.1 (bibliothèques d'ESP-IDF : Apache-2.0)
+|
+
+|Arm GNU Toolchain 14.3.rel1
+|stm32
+|GPL-3.0 (bibliothèques : licences libres de newlib)
+|sources : `SOURCES.md`
+
+|CMSIS 6.3.0
+|stm32
+|Apache-2.0
+|
+
+|CMSIS device F4 v2.6.11, G0 v1.4.5, L5 v1.0.7 (ST, GitHub)
+|stm32
+|Apache-2.0
+|
+
+|HAL F4 v1.8.5, G0 v1.4.7, L5 v1.0.7 (ST, GitHub)
+|stm32
+|BSD-3-Clause
+|
+
+|Packs CMSIS `Keil.STM32F4xx_DFP` 3.1.1, `G0xx` 2.1.0, `L5xx` 2.1.0 (Open-CMSIS-Pack)
+|stm32
+|Apache-2.0, BSD-3-Clause
+|
+
+|pyOCD 0.45.1
+|stm32, nrf52
+|Apache-2.0
+|
+
+|Zephyr v4.4.2 et ses modules `cmsis`, `cmsis_6`, `hal_nordic`, `hal_stm32`
+|nrf52
+|Apache-2.0 (modules : Apache-2.0, BSD-3-Clause)
+|
+
+|SDK Zephyr 1.0.1 (`arm-zephyr-eabi`)
+|nrf52
+|GPL-3.0 et licences libres
+|sources : `SOURCES.md`
+
+|west 1.5.0
+|nrf52
+|Apache-2.0
+|
+
+|nRF Connect SDK v3.4.1 (`sdk-nrf`, `sdk-zephyr`, `nrfxlib`, modules)
+|nrf52
+|LicenseRef-Nordic-5-Clause pour le code de Nordic ; Apache-2.0, BSD-3-Clause et autres
+pour le reste
+|*Seulement avec un circuit Nordic* ; binaires (nrfxlib) ni désassemblés ni modifiés ;
+notice à reproduire. `nrf_cc310_bl` : licence ARM, applications pour produit ARM
+seulement. *Retiré* : la bibliothèque LC3 de T2 Software (`nrfxlib/lc3/lib`, `codec`),
+sa licence n'accorde pas la redistribution
+|===
+
+*Rappel ST* : les paquets STM32Cube complets (intergiciels, BSP, exemples) sont sous
+SLA0048 (« Mix Ultimate Liberty+OSS+3rd-party V1 »), qui permet la redistribution
+*uniquement pour un usage avec des puces ST*. Les images n'en contiennent que les
+dépôts GitHub de ST sous Apache-2.0 et BSD-3-Clause (CMSIS device, HAL) ; un projet qui
+ajoute des intergiciels de ST passe sous SLA0048.
+
+=== Installés par script au premier démarrage
+
+[cols="2,1,2,3", options="header"]
+|===
+|Composant |Image |Licence |Pourquoi pas dans l'image
+
+|STM32CubeCLT
+|stm32
+|SLA0048 de ST
+|Téléchargement après connexion sur st.com et acceptation de la licence par
+l'utilisateur ; Linux x86_64 seulement. `picodev-install-stm32cubeclt <installeur>`
+
+|nrfutil 8.2.1 et sa commande `device`
+|nrf52
+|LicenseRef-Nordic-1-Clause
+|« must not be redistributed ». `picodev-install-nrfutil` (télécharge chez Nordic,
+empreinte vérifiée)
+
+|SEGGER J-Link
+|nrf52
+|licence SEGGER
+|Redistribution interdite ; acceptation sur segger.com. `picodev-install-jlink <.deb>`.
+Pas nécessaire pour flasher : OpenOCD parle au J-Link de la DK
+
+|Extensions VS Code
+|toutes
+|celle de chaque extension
+|VS Code les installe depuis sa place de marché à la connexion
+|===
+
+Pas de STM32CubeMX ni de STM32CubeIDE.
+
+== Construire et tester
+
+----
+make test-avr        # ou base, esp32, stm32, nrf52 : image amd64, puis tests/test-image.sh
+make vscode-avr      # extensions installées par le serveur VS Code, en SSH
+make clean-avr
+----
+
+`make` construit d'abord les images de compilation depuis `toolchains/`. Rien n'est
+poussé. Publication : `.github/workflows/publish.yml`, à la main seulement, sur ce
+dépôt ; `dry_run` construit les deux architectures sans rien pousser.

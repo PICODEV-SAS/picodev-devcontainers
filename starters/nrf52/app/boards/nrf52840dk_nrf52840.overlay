@@ -1,0 +1,5 @@
+/* The console UART, where the advertisements are written: uart0 (the DK's J-Link
+ * virtual COM port), 115200 baud. Picked up for nrf52840dk/nrf52840 only. */
+&uart0 {
+	current-speed = <115200>;
+};

@@ -1,0 +1,28 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Build",
+      "type": "shell",
+      "command": "cmake --preset ${input:board} && cmake --build --preset ${input:board}",
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": "$gcc"
+    },
+    {
+      "label": "Flash (OpenOCD, ST-LINK on USB)",
+      "type": "shell",
+      "command": "openocd -f board/${input:openocd} -c 'program build/${input:board}/starter.elf verify reset exit'",
+      "problemMatcher": []
+    },
+    {
+      "label": "Picodev: send to the bench (Nucleo-G071RB)",
+      "type": "shell",
+      "command": "picodev send",
+      "problemMatcher": "$gcc"
+    }
+  ],
+  "inputs": [
+    { "id": "board", "type": "pickString", "description": "Board", "options": ["nucleo-f446re", "nucleo-g071rb"], "default": "nucleo-f446re" },
+    { "id": "openocd", "type": "pickString", "description": "OpenOCD board file", "options": ["st_nucleo_f4.cfg", "st_nucleo_g0.cfg"], "default": "st_nucleo_f4.cfg" }
+  ]
+}

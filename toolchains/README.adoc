@@ -1,0 +1,162 @@
+= toolchains
+:toc: macro
+
+Images de compilation de Picodev CTF, une par famille, et leur interface commune
+`tc` (M3). Rapport (versions, tailles, temps, garde, limites) :
+`docs/toolchains.adoc`.
+
+toc::[]
+
+== Images
+
+[cols="1,3,3", options="header"]
+|===
+|Image |Contenu |Cartes
+
+|`picodev-lab-toolchain-avr`
+|arduino-cli, cœur `arduino:avr` (son avr-gcc), bibliothèque Servo (comme le lab)
+|`arduino-nano`, `arduino-uno`
+
+|`picodev-lab-toolchain-esp`
+|ESP-IDF (esp32, esp32s3, esp32c3), cœur Arduino ESP32 (arduino-cli)
+|`esp32-devkitc`, `esp32-s3-devkitc-1`, `esp32-c3-devkitm-1`
+
+|`picodev-lab-toolchain-zephyr`
+|Zephyr, modules CMSIS, nRF, STM32 et Mbed TLS (PSA Crypto), SDK Zephyr réduit à `arm-zephyr-eabi`
+|`nrf52840dk`, `nucleo-l552ze-q`, `nucleo-g071rb`, `stm32f4-discovery`
+
+|`picodev-lab-toolchain-arm`
+|Arm GNU Toolchain (`arm-none-eabi-gcc`), CMSIS 6 Core, STM32Cube minimal (en-têtes
+CMSIS des puces, fichiers de démarrage, HAL) des séries F4, G0, L5
+|`nucleo-l552ze-q`, `nucleo-g071rb`, `stm32f4-discovery`
+|===
+
+Les versions sont épinglées dans chaque `Dockerfile` (arguments en tête) et inscrites
+dans l'image (`/opt/tc/versions.json`, rendu dans chaque résultat). Le catalogue des
+cartes est `common/boards.json`.
+
+== Interface commune
+
+La même pour les quatre images : `tc` (`common/tc.py`, Python sans dépendance).
+
+----
+tc build --board <carte> [--option clé=valeur ...] [--src archive] [--out dossier]
+tc serve [--port 8080]
+tc info
+----
+
+*Entrée* : une archive des sources (tar, tar.gz/xz/bz2 ou zip) sur l'entrée standard
+(ou `--src`), la carte, des options :
+
+[cols="1,4", options="header"]
+|===
+|Option |Effet
+
+|`kind=` |Type de projet, sinon deviné : `arduino` (un `.ino` à la racine), `zephyr`
+(`CMakeLists.txt` et `prj.conf`), `idf` (`CMakeLists.txt` et `main/`), `make`
+(`Makefile`), `c` (des sources C seules : la recette de l'image)
+|`define=NOM[=VALEUR]` |Macro du préprocesseur (`arduino`, `c`, `make` par `TC_DEFINES`) ; répétable
+|`board_options=a=b,c=d` |Options de menu de la carte Arduino (`cpu=atmega328old`)
+|`dir=chemin` |Le projet est ce sous-dossier de l'archive (il peut utiliser `../common`)
+|===
+
+*Sortie* : un objet JSON sur la sortie standard ; avec `--out`, les mêmes fichiers dans
+le dossier (`firmware.elf`, `.bin`, `.hex`, `firmware.map`, `build.log`, `result.json`).
+
+[source,json]
+----
+{"v": 0, "ok": true, "code": "ok", "message": "built", "family": "zephyr",
+ "board": "nrf52840dk", "kind": "zephyr", "image": "picodev-lab-toolchain-zephyr@0.1.0",
+ "toolchain": {"zephyr": "v4.4.2", "…": "…"}, "duration_ms": 8261, "jobs": 4,
+ "size": {"text": 18432, "data": 160, "bss": 4096}, "peak_memory_mb": 610,
+ "cache": {"remote_storage_hit": 115, "cache_miss": 2, "…": 0},
+ "artifacts": {"elf": {"name": "zephyr.elf", "size": 0, "sha256": "…", "b64": "…"},
+               "bin": {"…": "…"}, "hex": {"…": "…"}, "map": {"…": "…"}},
+ "log": "fin du journal (64 Kio au plus)"}
+----
+
+`artifacts.<format>.b64` va tel quel dans `firmware_b64` du contrat moteur
+(`docs/engine-contract.adoc`). Ce que donne chaque famille :
+
+* avr : `elf`, `hex`, `map` ;
+* esp : `elf`, `map`, `bin` = image flash complète (amorce, table des partitions,
+  application), ce que démarre QEMU ; Arduino ESP32 en `FlashMode=dio` par défaut ;
+* zephyr : `elf`, `bin`, `hex`, `map` ;
+* arm : `elf`, `bin`, `hex`, `map` (pour `make`, la carte mémoire si le Makefile l'écrit).
+
+*Codes* : le champ `code` et le code de sortie, stables.
+
+[cols="1,2,4", options="header"]
+|===
+|Sortie |`code` |Sens
+
+|0 |`ok` |Compilé
+|2 |`usage` |Option inconnue ou refusée
+|3 |`bad_archive` |Archive illisible, chiffrée, entrée en double
+|4 |`unsafe_path` |Chemin absolu, `..`, lien, fichier spécial
+|5 |`too_large` |Archive, nombre de fichiers ou taille dépliée au-delà des bornes
+|6 |`bad_board` |Carte que cette image ne compile pas
+|7 |`bad_project` |Type de projet absent ou que cette image ne compile pas
+|8 |`build_failed` |Erreur de compilation (voir `log`)
+|9 |`timeout` |Durée dépassée (tout le groupe de processus est tué)
+|10 |`out_of_memory` |Mémoire dépassée
+|11 |`output_too_large` |Sorties au-delà de 32 Mio
+|12 |`internal` |Erreur de l'image
+|13 |`busy` |Service HTTP : trop de compilations en attente
+|14 |`unauthorized` |Service HTTP : jeton absent ou faux
+|===
+
+=== Lancer une compilation
+
+`tc-docker` lance une compilation dans l'image, sous la garde :
+
+----
+./tc-docker zephyr nrf52840dk examples/zephyr-hello --out /tmp/out
+./tc-docker avr arduino-nano projet.zip --option define=LED=13
+----
+
+=== Service HTTP
+
+`tc serve` (pour `target_build` du MCP d'auteur) : `POST /build?board=…&kind=…&define=…`,
+corps = l'archive, réponse = le même JSON (200 si `ok`, 413, 401, 503, 422 sinon) ;
+`GET /health` : famille, versions, cartes, codes. Une compilation à la fois, chacune
+dans son propre processus, quatre en attente au plus (`TC_QUEUE`) ; jeton
+`Authorization: Bearer` si `TC_TOKEN` est donné. À lancer sur un réseau Docker
+`--internal` (aucune route vers l'extérieur), avec les mêmes options que `tc-docker`
+(lecture seule, sans privilège, mémoire et processus bornés).
+
+== Garde
+
+Dans `tc` : archive de 4 Mio au plus, 512 fichiers, 16 Mio dépliés, chemins de 200
+caractères et 16 niveaux, aucun lien ni fichier spécial ni chemin hors de l'archive,
+durée bornée (`TC_TIMEOUT`, 120 s pour avr et arm, 600 s zephyr, 900 s esp), mémoire
+par processus (`TC_MEMORY_MB`, 4096), sorties de 32 Mio, journal de 64 Kio.
+
+Dans le conteneur (`tc-docker`) : `--network none`, racine en lecture seule sauf
+`/tmp` (tmpfs de 4 Gio), utilisateur 10001, `--cap-drop ALL`, `no-new-privileges`,
+mémoire (`TC_MEMORY`, 4g, sans swap), CPU (`TC_CPUS`, 4), processus
+(`TC_PIDS`, 512), aucun dossier de l'hôte monté.
+
+== Cache
+
+Chaque image porte une *graine* en lecture seule : les objets de ses exemples
+(`examples/`), compilés à la construction de l'image (`tc prewarm`), servis par ccache
+(stockage distant `file:` en lecture seule) et, pour arduino-cli, le cœur compilé. Un
+projet neuf en profite dès sa première compilation (noyau Zephyr, composants d'ESP-IDF,
+cœur Arduino). Pour aller plus loin, un volume `/cache` par auteur
+(`TC_CACHE_VOLUME=tc-cache-<auteur> ./tc-docker …`) garde ses propres objets entre ses
+compilations. *Jamais un volume partagé entre auteurs* : une compilation peut y
+écrire n'importe quoi, et empoisonner celles des autres.
+
+== Tests
+
+----
+make unit       # tc.py seul, sans Docker
+make test       # construit les images de cette machine, puis tous les tests
+make measure    # tailles et temps (tableaux du rapport)
+make images-multiarch   # amd64 et arm64
+----
+
+`tests/test_images.py` compile chaque exemple de `examples/` et chaque exemple des
+moteurs (`engines/*/examples/<nom>/` avec un `board.txt`, sans leurs binaires) ;
+`TC_ENGINES_DIR` pointe vers une autre copie de `engines/`.

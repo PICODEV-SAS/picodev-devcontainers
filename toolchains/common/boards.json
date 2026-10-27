@@ -1,0 +1,28 @@
+{
+  "avr": {
+    "arduino-nano": {"fqbn": "arduino:avr:nano", "mcu": "atmega328p", "f_cpu": 16000000},
+    "arduino-uno": {"fqbn": "arduino:avr:uno", "mcu": "atmega328p", "f_cpu": 16000000}
+  },
+  "esp": {
+    "esp32-devkitc": {"fqbn": "esp32:esp32:esp32:FlashMode=dio", "idf_target": "esp32"},
+    "esp32-s3-devkitc-1": {"fqbn": "esp32:esp32:esp32s3:FlashMode=dio", "idf_target": "esp32s3"},
+    "esp32-c3-devkitm-1": {"fqbn": "esp32:esp32:esp32c3:FlashMode=dio", "idf_target": "esp32c3"}
+  },
+  "zephyr": {
+    "nrf52840dk": {"zephyr_board": "nrf52840dk/nrf52840"},
+    "nucleo-l552ze-q": {"zephyr_board": "nucleo_l552ze_q"},
+    "nucleo-g071rb": {"zephyr_board": "nucleo_g071rb"},
+    "stm32f4-discovery": {"zephyr_board": "stm32f4_disco"}
+  },
+  "arm": {
+    "nucleo-l552ze-q": {"series": "l5", "device": "STM32L552xx", "startup": "startup_stm32l552xx.s",
+                        "cpu": ["-mcpu=cortex-m33", "-mfpu=fpv5-sp-d16", "-mfloat-abi=hard"],
+                        "flash": ["0x08000000", "512K"], "ram": ["0x20000000", "256K"]},
+    "nucleo-g071rb": {"series": "g0", "device": "STM32G071xx", "startup": "startup_stm32g071xx.s",
+                      "cpu": ["-mcpu=cortex-m0plus", "-mfloat-abi=soft"],
+                      "flash": ["0x08000000", "128K"], "ram": ["0x20000000", "36K"]},
+    "stm32f4-discovery": {"series": "f4", "device": "STM32F407xx", "startup": "startup_stm32f407xx.s",
+                          "cpu": ["-mcpu=cortex-m4", "-mfpu=fpv4-sp-d16", "-mfloat-abi=hard"],
+                          "flash": ["0x08000000", "1024K"], "ram": ["0x20000000", "128K"]}
+  }
+}

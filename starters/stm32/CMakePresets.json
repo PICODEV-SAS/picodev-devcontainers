@@ -1,0 +1,19 @@
+{
+  "version": 3,
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "toolchainFile": "${sourceDir}/cmake/arm-none-eabi.cmake",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug", "CMAKE_EXPORT_COMPILE_COMMANDS": "ON" }
+    },
+    { "name": "nucleo-f446re", "inherits": "base", "cacheVariables": { "BOARD": "nucleo-f446re" } },
+    { "name": "nucleo-g071rb", "inherits": "base", "cacheVariables": { "BOARD": "nucleo-g071rb" } }
+  ],
+  "buildPresets": [
+    { "name": "nucleo-f446re", "configurePreset": "nucleo-f446re" },
+    { "name": "nucleo-g071rb", "configurePreset": "nucleo-g071rb" }
+  ]
+}

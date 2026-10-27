@@ -1,0 +1,156 @@
+name: Publish
+
+# Publishes ghcr.io/picodev-sas/dev-<family>:<version>, public packages, amd64 and arm64
+# (each on its own GitHub runner, no emulation), with an SBOM and a provenance
+# attestation (BuildKit), signed with cosign keyless (GitHub OIDC, recorded in Rekor).
+# Runs on the public mirror PICODEV-SAS/picodev-devcontainers only, by hand: the mirror
+# carries toolchains/ (Makefile), so no secret. A version tag is never overwritten
+# (2026.2, then 2026.2.1). dry_run builds both architectures and pushes nothing.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Semester version, e.g. 2026.2 (a fix is 2026.2.1)
+        required: true
+      families:
+        description: Families to publish
+        default: base avr esp32 stm32 nrf52
+      dry_run:
+        description: Build amd64 and arm64, push nothing
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+env:
+  REGISTRY: ghcr.io/picodev-sas/
+  VERSION: ${{ inputs.version }}
+
+jobs:
+  check:
+    if: github.repository == 'PICODEV-SAS/picodev-devcontainers'
+    runs-on: ubuntu-24.04
+    permissions:
+      packages: read
+    outputs:
+      families: ${{ steps.families.outputs.json }}
+    steps:
+      - name: Check the version
+        run: echo "$VERSION" | grep -Eqx '20[0-9]{2}\.[12](\.[0-9]+)?' || { echo "::error::version $VERSION"; exit 1; }
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Refuse to overwrite a published version
+        env:
+          FAMILIES: ${{ inputs.families }}
+        run: |
+          for f in $FAMILIES; do
+            if docker buildx imagetools inspect "${REGISTRY}dev-$f:$VERSION" >/dev/null 2>&1; then
+              echo "::error::${REGISTRY}dev-$f:$VERSION exists already"; exit 1
+            fi
+          done
+
+      - id: families
+        env:
+          FAMILIES: ${{ inputs.families }}
+        run: echo "json=$(printf '%s\n' $FAMILIES | jq -R . | jq -sc .)" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: check
+    strategy:
+      fail-fast: false
+      matrix:
+        family: ${{ fromJSON(needs.check.outputs.families) }}
+        arch: [amd64, arm64]
+    runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
+    timeout-minutes: 360
+    permissions:
+      packages: write
+    env:
+      FAMILY: ${{ matrix.family }}
+      ARCH: ${{ matrix.arch }}
+    steps:
+      - uses: actions/checkout@v5
+
+      # dev-esp32 is 9 GB: the runner's preinstalled SDKs go first.
+      - name: Free disk
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache /usr/local/share/boost
+          docker system prune -af >/dev/null
+          df -h /
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Toolchain images (toolchains/ of picodev-lab-workers)
+        run: make toolchains
+
+      # A push by digest takes an untagged name: the tag comes in publish, on the merged index.
+      - name: Build, with SBOM and provenance; push by digest
+        env:
+          REVISION: ${{ github.sha }}
+          OUTPUT: ${{ inputs.dry_run && 'type=cacheonly' || 'type=image,push-by-digest=true,name-canonical=true,push=true' }}
+        run: |
+          export CREATED=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          docker buildx bake --metadata-file "$RUNNER_TEMP/bake.json" \
+            --set "*.platform=linux/$ARCH" \
+            --set '*.attest=type=sbom' --set '*.attest=type=provenance,mode=max' \
+            --set "dev-$FAMILY.tags=${REGISTRY}dev-$FAMILY" \
+            --set "dev-$FAMILY.output=$OUTPUT" "dev-$FAMILY"
+          mkdir -p "$RUNNER_TEMP/digests"
+          jq -r --arg t "dev-$FAMILY" '.[$t]["containerimage.digest"] // empty' "$RUNNER_TEMP/bake.json" \
+            > "$RUNNER_TEMP/digests/$FAMILY-$ARCH"
+
+      - if: ${{ !inputs.dry_run }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: digest-${{ matrix.family }}-${{ matrix.arch }}
+          path: ${{ runner.temp }}/digests/*
+
+  publish:
+    needs: [check, build]
+    if: ${{ !inputs.dry_run }}
+    runs-on: ubuntu-24.04
+    permissions:
+      packages: write
+      id-token: write  # cosign keyless
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: digest-*
+          merge-multiple: true
+          path: digests
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: sigstore/cosign-installer@v3
+
+      - name: Tag both architectures, sign
+        env:
+          FAMILIES: ${{ join(fromJSON(needs.check.outputs.families), ' ') }}
+        run: |
+          echo "| Image | Digest |" >> "$GITHUB_STEP_SUMMARY"; echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          for f in $FAMILIES; do
+            image=${REGISTRY}dev-$f
+            docker buildx imagetools create -t "$image:$VERSION" \
+              "$image@$(cat digests/$f-amd64)" "$image@$(cat digests/$f-arm64)"
+            digest=$(docker buildx imagetools inspect "$image:$VERSION" --format '{{json .Manifest}}' | jq -r .digest)
+            cosign sign --yes "$image@$digest"
+            echo "| $image:$VERSION | $digest |" >> "$GITHUB_STEP_SUMMARY"
+          done

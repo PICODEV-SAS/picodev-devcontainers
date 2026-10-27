@@ -1,0 +1,244 @@
+#!/usr/bin/env python3
+"""picodev: compile a project here and send it to the bench of an open Picodev CTF game.
+
+  picodev login CODE    join the game whose screen shows CODE (8 characters, 15 minutes, once):
+                          keeps its session in ~/.config/picodev/game (0600, outside the project)
+                          and, in an empty folder, downloads the challenge's project there
+  picodev build [DIR]   compile, into DIR/../build, as this image's family does (PICODEV_FAMILY):
+                          avr    arduino-cli compile DIR (default: blink)
+                          nrf52  west build -b nrf52840dk/nrf52840 DIR (default: app)
+                          stm32  cmake --preset nucleo-g071rb in DIR/.. (default: src, the sources sent),
+                                 or make in DIR when it has a Makefile (a challenge's HAL project)
+                          esp32  idf.py set-target esp32 build, then merge-bin as Intel HEX, in DIR/build
+                                 (default: .), the whole flash image the bench needs
+  picodev send [DIR]    build, then push the HEX through the game's agent (MCP push_program)
+  picodev status        the game in one JSON line {challenge, expires_at, owner, run, level, levels}
+                        (MCP session_status); exit 3 without a game, 4 when the hub says it ended
+
+The game gives a code for picodev login (start the challenge with "use my machine"), or the
+session and its agent token, which win over the saved game:
+  PICODEV_SESSION, PICODEV_AGENT_TOKEN   or --session, --token
+  PICODEV_URL         the CTF (default https://ctf.picodev.fr; after login, the game's)
+  PICODEV_SITE_AUTH   user:password of the staging site, when it is closed by a password
+  PICODEV_LANG        language of the downloaded project: fr (default) or en
+The agent token is never printed; the saved game is deleted once the hub says the game ended.
+"""
+
+import argparse
+import base64
+import json
+import os
+import re
+import subprocess
+import sys
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+import zipfile
+from io import BytesIO
+from pathlib import Path
+
+SOURCES = {".ino", ".c", ".cpp", ".h", ".hpp", ".S", ".conf", ".overlay", ".txt", ".yaml"}
+SOURCE_NAMES = {"Makefile", "sdkconfig.defaults"}
+MAX_FILES, MAX_FILES_BYTES = 8, 64 * 1024  # the hub's limits on the sources shown in the editor
+STM32_BOARD = "nucleo-g071rb"  # the starter's board that renode-stm32 benches have
+DEFAULT_URL = "https://ctf.picodev.fr"
+GAME = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "picodev" / "game"
+GAME_ENDED = ("Unknown or ended session", "Agent token refused")  # the hub's tool errors for a dead game
+MAX_PROJECT = 16 * 1024 * 1024  # unpacked project.zip
+FAMILIES = {  # default directory, build commands (run in DIR/..), the HEX they make
+    "avr": ("blink", lambda src, out: [["arduino-cli", "compile", "--build-path", str(out), str(src)]],
+            lambda src, out: out / f"{src.name}.ino.hex"),
+    "nrf52": ("app", lambda src, out: [["west", "build", "-b", "nrf52840dk/nrf52840", "-d", str(out), str(src)]],
+              lambda src, out: out / "zephyr" / "zephyr.hex"),
+    "stm32": ("src", lambda src, out: [["cmake", "--preset", STM32_BOARD], ["cmake", "--build", "--preset", STM32_BOARD]],
+              lambda src, out: out / STM32_BOARD / "starter.hex"),
+    "esp32": (".", lambda src, out: [["idf.py", "-C", str(src), "-B", str(src / "build"), "set-target", "esp32", "build"],
+                                     ["idf.py", "-C", str(src), "-B", str(src / "build"), "merge-bin", "-f", "hex",
+                                      "-o", str(src / "build" / "merged.hex")]],
+              lambda src, out: src / "build" / "merged.hex"),
+}
+
+
+def build(family: str, src: Path) -> Path:
+    src = src.resolve()
+    if family == "stm32" and (src / "Makefile").exists():
+        return build_make(src)
+    out = src.parent / "build"
+    _, cmds, hex_of = FAMILIES[family]
+    for cmd in cmds(src, out):
+        subprocess.run(cmd, check=True, cwd=src.parent)
+    return hex_of(src, out)
+
+
+def build_make(src: Path) -> Path:
+    """A Makefile project, as tc-arm builds it (kind make): CROSS_COMPILE set, the .elf it wrote made a HEX."""
+    started = time.time()
+    subprocess.run(["make", f"-j{os.cpu_count()}"], check=True, cwd=src, env=os.environ | {"CROSS_COMPILE": "arm-none-eabi-"})
+    elves = sorted(p for p in src.rglob("*.elf") if p.stat().st_mtime >= started - 1)
+    elves = [p for p in elves if p.name == "firmware.elf"] or elves
+    if len(elves) != 1:
+        raise SystemExit(f"picodev: make must write firmware.elf or exactly one .elf, wrote {len(elves)}")
+    hex_path = elves[0].with_suffix(".hex")
+    subprocess.run(["arm-none-eabi-objcopy", "-O", "ihex", elves[0], hex_path], check=True)
+    return hex_path
+
+
+def sources(src: Path) -> list[dict] | None:
+    """The project's sources, names relative to it (src/main.c), as the editor shows them."""
+    paths = sorted(p for p in src.rglob("*") if p.is_file() and (p.suffix in SOURCES or p.name in SOURCE_NAMES) and not any(d.startswith("build") for d in p.relative_to(src).parts))
+    files = [{"name": p.relative_to(src).as_posix(), "content": p.read_text()} for p in paths]
+    # shortcut: sources over the hub's limits are left out, the HEX alone still runs
+    fits = 0 < len(files) <= MAX_FILES and sum(len(f["content"].encode()) for f in files) <= MAX_FILES_BYTES
+    return files if fits else None
+
+
+def request(url: str, body: dict | None, auth: str | None) -> bytes:
+    """GET (body None) or POST JSON; the answer, or SystemExit naming the status, never the body sent."""
+    headers = {"Content-Type": "application/json", "Accept": "application/json, text/event-stream"}
+    if auth:
+        headers["Authorization"] = "Basic " + base64.b64encode(auth.encode()).decode()
+    data = None if body is None else json.dumps(body).encode()
+    req = urllib.request.Request(url, data, headers, method="GET" if body is None else "POST")
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r:  # noqa: S310 (an https URL the user gives)
+            return r.read()
+    except urllib.error.HTTPError as e:
+        hint = {401: " (staging: set PICODEV_SITE_AUTH=user:password)",
+                413: " (program and sources too big for this hub)"}.get(e.code, "")
+        raise SystemExit(f"picodev: {url.split('?')[0]} answered {e.code}{hint}")
+    except (urllib.error.URLError, TimeoutError) as e:
+        raise SystemExit(f"picodev: {url.split('?')[0]} unreachable: {e}")
+
+
+class GameEnded(SystemExit):
+    pass
+
+
+def mcp_call(url: str, tool: str, args: dict, auth: str | None) -> dict:
+    """One tools/call on the hub's public MCP (stateless, JSON answers): its result, or SystemExit with the hub's error."""
+    body = {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": tool, "arguments": args}}
+    answer = json.loads(request(url.rstrip("/") + "/mcp", body, auth))
+    if "error" in answer:
+        raise SystemExit(f"picodev: {answer['error'].get('message', answer['error'])}")
+    result = answer["result"]
+    text = " ".join(c.get("text", "") for c in result.get("content", []))
+    if result.get("isError"):
+        raise (GameEnded if any(m in text for m in GAME_ENDED) else SystemExit)(f"picodev: the hub refused: {text}")
+    return result | {"text": text}
+
+
+def push_program(url: str, session: str, token: str, hex_text: str, files: list[dict] | None, auth: str | None) -> str:
+    args = {"session": session, "agent_token": token, "hex": hex_text, "run": True}
+    if files:
+        args["files"] = files
+    return mcp_call(url, "push_program", args, auth)["text"]
+
+
+def login(url: str, code: str, auth: str | None) -> None:
+    """Claim the game's code, keep its session in GAME, and in an empty folder unpack the challenge's project."""
+    try:
+        answer = request(url.rstrip("/") + "/api/agent/claim", {"code": code.strip().upper()}, auth)
+    except SystemExit as e:
+        raise SystemExit("picodev: code unknown, already used or expired" if " answered 404" in str(e) else e.code)
+    try:
+        claim = json.loads(answer)
+        game = {k: claim[k] for k in ("session", "agent_token", "url", "challenge")}
+        challenge, family = str(claim["challenge"]), claim.get("family")
+    except (ValueError, KeyError, TypeError):
+        raise SystemExit("picodev: unexpected answer to the code")
+    GAME.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    fd = os.open(GAME, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as f:
+        json.dump(game, f)
+    os.chmod(GAME, 0o600)  # an older file kept its mode
+    print(f"picodev: joined the game of {challenge} (session saved in {GAME})")
+    if family and family != os.environ.get("PICODEV_FAMILY"):
+        print(f"picodev: this game is for {family}: send from the dev-{family} container")
+    if any(Path.cwd().iterdir()):
+        return
+    lang = os.environ.get("PICODEV_LANG", "fr")
+    data = request(f"{url.rstrip('/')}/api/challenges/{urllib.parse.quote(challenge, safe='')}/project.zip?"
+                   + urllib.parse.urlencode({"lang": lang}), None, auth)
+    try:
+        with zipfile.ZipFile(BytesIO(data)) as z:
+            members = z.infolist()
+            if sum(m.file_size for m in members) > MAX_PROJECT or any(
+                    m.filename.startswith("/") or ".." in Path(m.filename).parts for m in members):
+                raise SystemExit("picodev: refused the project: too big or a path outside this folder")
+            z.extractall()
+    except zipfile.BadZipFile:
+        raise SystemExit("picodev: the project is not a zip")
+    print(f"picodev: project of {challenge} ({lang}) unpacked here")
+
+
+def status(a: argparse.Namespace, auth: str | None) -> None:
+    """The saved game (or PICODEV_SESSION and PICODEV_AGENT_TOKEN) as session_status sees it, one JSON line."""
+    saved = {}
+    if not (a.session and a.token):
+        try:
+            saved = json.loads(GAME.read_text())
+            a.session, a.token = saved["session"], saved["agent_token"]
+        except (OSError, ValueError, KeyError):
+            print("picodev: no game: picodev login CODE", file=sys.stderr)
+            raise SystemExit(3)
+    url = a.url or saved.get("url") or DEFAULT_URL
+    try:
+        result = mcp_call(url, "session_status", {"session": a.session, "agent_token": a.token}, auth)
+    except GameEnded as e:
+        if saved:
+            GAME.unlink(missing_ok=True)
+        print(e.code, file=sys.stderr)
+        raise SystemExit(4)
+    st = result.get("structuredContent") or json.loads(result["text"])
+    print(json.dumps({"challenge": saved.get("challenge") or st.get("setup"), **{k: st.get(k) for k in
+                      ("expires_at", "owner", "run", "level", "levels")}}))
+
+
+def main(argv: list[str] | None = None) -> None:
+    p = argparse.ArgumentParser(prog="picodev", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument("command", choices=["login", "build", "send", "status"])
+    p.add_argument("dir", nargs="?", help="the project (build, send) or the game's code (login)")
+    p.add_argument("--session", default=os.environ.get("PICODEV_SESSION"))
+    p.add_argument("--token", default=os.environ.get("PICODEV_AGENT_TOKEN"))
+    p.add_argument("--url", default=os.environ.get("PICODEV_URL"))
+    p.add_argument("--hex", type=Path, help="send this HEX, without building")
+    a = p.parse_args(argv)
+    auth = os.environ.get("PICODEV_SITE_AUTH")
+    if a.command == "login":
+        if not a.dir:
+            p.error("login needs the code the game shows")
+        return login(a.url or DEFAULT_URL, a.dir, auth)
+    if a.command == "status":
+        return status(a, auth)
+    family = os.environ.get("PICODEV_FAMILY")
+    if family not in FAMILIES and not (a.command == "send" and a.hex):
+        p.error(f"no build for this image (PICODEV_FAMILY={family}); families: {', '.join(FAMILIES)}")
+    src = Path(a.dir or (FAMILIES[family][0] if family in FAMILIES else "."))
+    saved = None
+    if a.command == "send" and not (a.session and a.token):
+        try:
+            saved = json.loads(GAME.read_text())
+            a.session, a.token = saved["session"], saved["agent_token"]
+        except (OSError, ValueError, KeyError):
+            p.error("send needs a game: picodev login CODE, or PICODEV_SESSION and PICODEV_AGENT_TOKEN")
+    try:
+        hex_path = a.hex or build(family, src)
+    except subprocess.CalledProcessError as e:
+        raise SystemExit(e.returncode)
+    print(f"picodev: {hex_path}")
+    if a.command == "send":
+        files = None if a.hex else sources(src)
+        url = a.url or (saved or {}).get("url") or DEFAULT_URL
+        try:
+            print("picodev: " + push_program(url, a.session, a.token, hex_path.read_text(), files, auth))
+        except GameEnded:
+            if saved:
+                GAME.unlink(missing_ok=True)
+                print("picodev: that game is over; picodev login with the code of a new one", file=sys.stderr)
+            raise
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])

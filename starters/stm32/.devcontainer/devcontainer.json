@@ -1,0 +1,23 @@
+{
+  "name": "Picodev STM32 (Nucleo-F446RE, Nucleo-G071RB)",
+  "image": "ghcr.io/picodev-sas/dev-stm32:2026.2",
+  "remoteUser": "picodev",
+  // Lets the container reach a GDB server on the host (Linux; Docker Desktop has it already).
+  "runArgs": ["--add-host=host.docker.internal:host-gateway"],
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "stmicroelectronics.stm32-vscode-extension",
+        "marus25.cortex-debug",
+        "llvm-vs-code-extensions.vscode-clangd",
+        "ms-vscode.vscode-serial-monitor",
+        "picodev.picodev-lab"
+      ],
+      "settings": {
+        "cortex-debug.gdbPath": "arm-none-eabi-gdb",
+        "clangd.arguments": ["--query-driver=/opt/arm-gnu/bin/arm-none-eabi-*"]
+      }
+    }
+  }
+  // Linux, a Nucleo on USB: add "--device=/dev/bus/usb" to runArgs (ST-LINK, see the docs).
+}

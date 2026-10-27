@@ -1,0 +1,31 @@
+#!/bin/sh
+# `sshd` (the default): Remote-SSH mode, keys from SSH_AUTHORIZED_KEYS or a file
+# mounted on /etc/picodev/authorized_keys. Anything else runs as picodev.
+# Dev Containers mode does not go through here (VS Code overrides the entrypoint).
+set -eu
+user=picodev home=/home/picodev
+
+if [ "${1:-sshd}" != sshd ]; then
+  [ "$(id -u)" = 0 ] || exec "$@"
+  HOME=$home exec setpriv --reuid=$user --regid=$user --init-groups "$@"
+fi
+
+keys=$home/.ssh/authorized_keys
+install -d -m 700 -o $user -g $user $home/.ssh
+{
+  [ ! -f $keys ] || cat $keys
+  [ -z "${SSH_AUTHORIZED_KEYS:-}" ] || printf '%s\n' "$SSH_AUTHORIZED_KEYS"
+  [ ! -r /etc/picodev/authorized_keys ] || cat /etc/picodev/authorized_keys
+} | grep -E '^(ssh-|ecdsa-|sk-)' | sort -u > $keys.new || true
+mv $keys.new $keys && chown $user:$user $keys && chmod 600 $keys
+if [ ! -s $keys ]; then
+  echo "picodev-entrypoint: no SSH public key; pass -e SSH_AUTHORIZED_KEYS=\"\$(cat ~/.ssh/id_ed25519.pub)\"" >&2
+  exit 64
+fi
+
+ssh-keygen -A
+# SSH sessions do not inherit the image environment (PATH, SDK paths, /etc/profile.d):
+# pam_env reads it here, for non-interactive commands too.
+bash -lc env | grep -vE '^(HOME|HOSTNAME|PWD|OLDPWD|SHLVL|TERM|USER|LOGNAME|SHELL|SSH_AUTHORIZED_KEYS|_)=' > /etc/environment
+unset SSH_AUTHORIZED_KEYS
+exec /usr/sbin/sshd -D -e

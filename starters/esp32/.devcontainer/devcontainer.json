@@ -1,0 +1,23 @@
+{
+  "name": "Picodev ESP32 (ESP-IDF)",
+  "image": "ghcr.io/picodev-sas/dev-esp32:2026.2",
+  "remoteUser": "picodev",
+  // Lets the container reach esp_rfc2217_server on the host (Linux; Docker Desktop has it already).
+  "runArgs": ["--add-host=host.docker.internal:host-gateway"],
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "espressif.esp-idf-extension",
+        "llvm-vs-code-extensions.vscode-clangd",
+        "ms-vscode.vscode-serial-monitor",
+        "picodev.picodev-lab"
+      ],
+      // The ESP-IDF extension (2.x) finds ESP-IDF through IDF_PATH and IDF_TOOLS_PATH of the image.
+      "settings": {
+        "idf.port": "rfc2217://host.docker.internal:4000?ign_set_control",
+        "clangd.arguments": ["--query-driver=/opt/espressif/tools/**/bin/*-gcc"]
+      }
+    }
+  }
+  // Linux, a board on USB instead of RFC2217: add "--device=/dev/ttyUSB0" to runArgs.
+}

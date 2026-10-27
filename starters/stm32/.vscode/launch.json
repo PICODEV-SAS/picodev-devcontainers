@@ -1,0 +1,77 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "nucleo-f446re: OpenOCD (USB)",
+      "type": "cortex-debug",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "executable": "build/nucleo-f446re/starter.elf",
+      "svdFile": "/opt/cmsis-packs/svd/STM32F446.svd",
+      "runToEntryPoint": "main",
+      "servertype": "openocd",
+      "configFiles": [
+        "board/st_nucleo_f4.cfg"
+      ]
+    },
+    {
+      "name": "nucleo-f446re: pyOCD (USB)",
+      "type": "cortex-debug",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "executable": "build/nucleo-f446re/starter.elf",
+      "svdFile": "/opt/cmsis-packs/svd/STM32F446.svd",
+      "runToEntryPoint": "main",
+      "servertype": "pyocd",
+      "targetId": "stm32f446re",
+      "cmsisPack": "/opt/cmsis-packs/Keil.STM32F4xx_DFP.3.1.1.pack"
+    },
+    {
+      "name": "nucleo-f446re: GDB server on the host (port 3333)",
+      "type": "cortex-debug",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "executable": "build/nucleo-f446re/starter.elf",
+      "svdFile": "/opt/cmsis-packs/svd/STM32F446.svd",
+      "runToEntryPoint": "main",
+      "servertype": "external",
+      "gdbTarget": "host.docker.internal:3333"
+    },
+    {
+      "name": "nucleo-g071rb: OpenOCD (USB)",
+      "type": "cortex-debug",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "executable": "build/nucleo-g071rb/starter.elf",
+      "svdFile": "/opt/cmsis-packs/svd/STM32G071.svd",
+      "runToEntryPoint": "main",
+      "servertype": "openocd",
+      "configFiles": [
+        "board/st_nucleo_g0.cfg"
+      ]
+    },
+    {
+      "name": "nucleo-g071rb: pyOCD (USB)",
+      "type": "cortex-debug",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "executable": "build/nucleo-g071rb/starter.elf",
+      "svdFile": "/opt/cmsis-packs/svd/STM32G071.svd",
+      "runToEntryPoint": "main",
+      "servertype": "pyocd",
+      "targetId": "stm32g071rbtx",
+      "cmsisPack": "/opt/cmsis-packs/Keil.STM32G0xx_DFP.2.1.0.pack"
+    },
+    {
+      "name": "nucleo-g071rb: GDB server on the host (port 3333)",
+      "type": "cortex-debug",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "executable": "build/nucleo-g071rb/starter.elf",
+      "svdFile": "/opt/cmsis-packs/svd/STM32G071.svd",
+      "runToEntryPoint": "main",
+      "servertype": "external",
+      "gdbTarget": "host.docker.internal:3333"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+#!/bin/sh
+# picodev-install-jlink <JLink_Linux_*.deb>: installs SEGGER J-Link in this container,
+# for nrfutil and `west flash --runner jlink`. Not in the image: SEGGER's licence
+# allows no redistribution. Download the Linux .deb (x86_64 or arm64) from
+# https://www.segger.com/downloads/jlink/ (you accept the licence there).
+# Without it: `west flash --runner openocd` works with the DK's J-Link (libjaylink).
+set -eu
+deb=${1:-}
+if [ -z "$deb" ] || [ ! -f "$deb" ]; then
+  sed -n '2,6s/^# \{0,1\}//p' "$0" >&2
+  exit 64
+fi
+case $deb in *.deb) ;; *) echo "expected the J-Link .deb: $deb" >&2; exit 64 ;; esac
+sudo apt-get update -q && sudo apt-get install -y "$(realpath "$deb")"

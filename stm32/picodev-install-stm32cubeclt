@@ -1,0 +1,22 @@
+#!/bin/sh
+# picodev-install-stm32cubeclt <installer>: installs STM32CubeCLT in this container.
+# The image does not carry it: ST distributes it from st.com, after sign-in, under its
+# licence SLA0048, which each user accepts. Download the Linux installer (.sh, x86_64)
+# from https://www.st.com/en/development-tools/stm32cubeclt.html into the workspace,
+# then run this script with its path. The installer shows the licence and asks for it.
+set -eu
+installer=${1:-}
+if [ -z "$installer" ] || [ ! -f "$installer" ]; then
+  sed -n '2,6s/^# \{0,1\}//p' "$0" >&2
+  exit 64
+fi
+if [ "$(uname -m)" != x86_64 ]; then
+  echo "STM32CubeCLT for Linux exists for x86_64 only (this container: $(uname -m))." >&2
+  exit 69
+fi
+case $installer in
+  *.sh) ;;
+  *) echo "expected the Linux installer, a .sh file: $installer" >&2; exit 64 ;;
+esac
+sudo sh "$installer"
+echo "STM32CubeCLT installed. Reopen the window (or run 'exec bash -l') for its tools to be on PATH."

@@ -1,0 +1,26 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "nRF52840 DK: OpenOCD (USB)",
+      "type": "cortex-debug",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "executable": "build/zephyr/zephyr.elf",
+      "servertype": "openocd",
+      "configFiles": ["interface/jlink.cfg", "target/nrf52.cfg"],
+      "openOCDLaunchCommands": ["transport select swd"],
+      "runToEntryPoint": "main"
+    },
+    {
+      "name": "nRF52840 DK: GDB server on the host (port 3333)",
+      "type": "cortex-debug",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "executable": "build/zephyr/zephyr.elf",
+      "servertype": "external",
+      "gdbTarget": "host.docker.internal:3333",
+      "runToEntryPoint": "main"
+    }
+  ]
+}

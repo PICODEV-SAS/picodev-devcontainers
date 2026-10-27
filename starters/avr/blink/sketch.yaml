@@ -1,0 +1,2 @@
+# `arduino-cli compile blink` builds for the Nano; add `--fqbn arduino:avr:uno` for the Uno.
+default_fqbn: arduino:avr:nano

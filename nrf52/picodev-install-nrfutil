@@ -1,0 +1,21 @@
+#!/bin/sh
+# picodev-install-nrfutil: installs Nordic's nrfutil and its `device` command for
+# picodev, in ~/.nrfutil. Not in the image: its licence (LicenseRef-Nordic-1-Clause)
+# forbids redistribution; Nordic serves it to each user. Programming a DK with
+# nrfutil also needs SEGGER J-Link: picodev-install-jlink.
+set -eu
+version=8.2.1
+case $(uname -m) in
+  x86_64) arch=x86_64-unknown-linux-gnu sum=1cf4bd1d3d64f43a6b9602d8d8e8d647bec0d26d517ba72fd154f95546b50260 ;;
+  aarch64) arch=aarch64-unknown-linux-gnu sum=e7310f072132766e69b43c833c6a87a53367ea68d5b8a5f7c6fa1a45993ecde4 ;;
+  *) echo "no nrfutil for $(uname -m)" >&2; exit 69 ;;
+esac
+mkdir -p ~/.local/bin
+curl -fsSL -o ~/.local/bin/nrfutil.new "https://files.nordicsemi.com/artifactory/swtools/external/nrfutil/executables/$arch/nrfutil"
+if ! echo "$sum  $HOME/.local/bin/nrfutil.new" | sha256sum -c - >/dev/null; then
+  echo "nrfutil from Nordic is not the $version this script knows; check https://www.nordicsemi.com/Products/Development-tools/nRF-Util" >&2
+  rm ~/.local/bin/nrfutil.new; exit 1
+fi
+chmod +x ~/.local/bin/nrfutil.new && mv ~/.local/bin/nrfutil.new ~/.local/bin/nrfutil
+~/.local/bin/nrfutil install device
+~/.local/bin/nrfutil --version | head -1

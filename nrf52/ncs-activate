@@ -1,0 +1,6 @@
+# . /opt/ncs/activate: build with the nRF Connect SDK instead of upstream Zephyr
+# (same Zephyr version and SDK). New shell to come back.
+export ZEPHYR_BASE=/opt/ncs/zephyr
+export PATH=/opt/ncs/venv/bin:$PATH
+# The toolchain image lists its own modules; NCS takes its modules from its west workspace.
+unset ZEPHYR_MODULES

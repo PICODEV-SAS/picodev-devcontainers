@@ -1,0 +1,28 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Build",
+      "type": "shell",
+      "command": "arduino-cli compile --build-path build blink",
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": "$gcc"
+    },
+    {
+      "label": "Upload (USB)",
+      "type": "shell",
+      "command": "arduino-cli upload --input-dir build -p ${input:port} blink",
+      "dependsOn": "Build",
+      "problemMatcher": []
+    },
+    {
+      "label": "Picodev: send to the bench",
+      "type": "shell",
+      "command": "picodev send blink",
+      "problemMatcher": "$gcc"
+    }
+  ],
+  "inputs": [
+    { "id": "port", "type": "promptString", "description": "Serial port of the board", "default": "/dev/ttyUSB0" }
+  ]
+}

@@ -93,7 +93,7 @@ cosign verify ghcr.io/picodev-sas/dev-avr:2026.2 \
 |celle de chaque paquet (GPL, BSD, MIT, Apache…)
 |sources dans l'archive Debian
 
-|`tc` (interface de compilation, M3)
+|`tc` (interface de compilation)
 |toutes
 |Apache-2.0
 |picodev-lab-workers

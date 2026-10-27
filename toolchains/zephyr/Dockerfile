@@ -1,5 +1,5 @@
 # Zephyr toolchain image: Zephyr with the modules of the nRF52840 DK and of
-# the M2 STM32 boards only, and the Zephyr SDK reduced to arm-zephyr-eabi.
+# the lab's STM32 boards only, and the Zephyr SDK reduced to arm-zephyr-eabi.
 # Build from toolchains/:
 #   docker buildx build -f zephyr/Dockerfile --platform linux/amd64,linux/arm64 .
 ARG BASE=debian:trixie-slim@sha256:62bd423aeee912639ca8ee681c2b762cb3e25137e0a92b20be455898a9f034ad
@@ -73,7 +73,7 @@ RUN ln -s /opt/tc/tc.py /usr/local/bin/tc \
  && chmod -R a+rX /opt/tc && rm -rf /tmp/* \
  && useradd -u 10001 -M -d /tmp/work/home builder
 
-# Measured (docs/toolchains.adoc): CPUs a build uses well, peak memory in MiB.
+# Measured with `make measure`: CPUs a build uses well, peak memory in MiB.
 ARG CPU=4
 ARG MEMORY=1024
 LABEL org.opencontainers.image.title="picodev-lab-toolchain-zephyr" \

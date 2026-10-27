@@ -5,7 +5,7 @@
 # The result JSON goes to stdout; with --out DIR, the host decodes it into
 # DIR/firmware.*, build.log and result.json (nothing of the host is mounted).
 #
-# The guard (the lab's rules, picodev/ of the fork, applied to a container):
+# The guard (the sandbox rules of the Picodev CTF lab, applied to a container):
 # no network, read-only root but /tmp, no capability, no new privilege,
 # unprivileged user, bounded memory, CPU, processes and /tmp.
 # TC_PLATFORM (linux/arm64) picks the image of another architecture.

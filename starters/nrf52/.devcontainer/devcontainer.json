@@ -11,7 +11,7 @@
         "marus25.cortex-debug",
         "llvm-vs-code-extensions.vscode-clangd",
         "ms-vscode.vscode-serial-monitor",
-        "picodev.picodev-lab"
+        "picodev.picodev-ctf"
       ],
       "settings": {
         "cortex-debug.gdbPath": "/opt/zephyr-sdk-1.0.1/arm-zephyr-eabi/bin/arm-zephyr-eabi-gdb",

@@ -51,7 +51,7 @@ RUN ln -s /opt/tc/tc.py /usr/local/bin/tc \
  && chmod -R a+rX /opt/tc && rm -rf /tmp/* \
  && useradd -u 10001 -M -d /tmp/work/home builder
 
-# Measured (docs/toolchains.adoc): CPUs a build uses well, peak memory in MiB.
+# Measured with `make measure`: CPUs a build uses well, peak memory in MiB.
 ARG CPU=1
 ARG MEMORY=256
 LABEL org.opencontainers.image.title="picodev-lab-toolchain-avr" \

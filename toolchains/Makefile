@@ -1,7 +1,7 @@
-# Toolchain images (M3), one per family. Run from toolchains/.
+# Toolchain images, one per family. Run from toolchains/.
 #   make test               images for this machine, then every test
 #   make images-multiarch   amd64 and arm64 (arm64 under QEMU on an amd64 host)
-#   make measure            sizes and build times (docs/toolchains.adoc)
+#   make measure            sizes and build times, as AsciiDoc tables
 # Nothing is pushed: images stay in the local Docker store.
 FAMILIES := avr arm zephyr esp
 TAG ?= dev

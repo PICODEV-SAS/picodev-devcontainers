@@ -2,8 +2,7 @@
 :toc: macro
 
 Images de compilation de Picodev CTF, une par famille, et leur interface commune
-`tc` (M3). Rapport (versions, tailles, temps, garde, limites) :
-`docs/toolchains.adoc`.
+`tc`. Les tailles et les temps de compilation se mesurent avec `make measure`.
 
 toc::[]
 
@@ -75,8 +74,8 @@ le dossier (`firmware.elf`, `.bin`, `.hex`, `firmware.map`, `build.log`, `result
  "log": "fin du journal (64 Kio au plus)"}
 ----
 
-`artifacts.<format>.b64` va tel quel dans `firmware_b64` du contrat moteur
-(`docs/engine-contract.adoc`). Ce que donne chaque famille :
+`artifacts.<format>.b64` va tel quel dans le champ `firmware_b64` d'une requête
+aux moteurs d'émulation de Picodev CTF. Ce que donne chaque famille :
 
 * avr : `elf`, `hex`, `map` ;
 * esp : `elf`, `map`, `bin` = image flash complète (amorce, table des partitions,

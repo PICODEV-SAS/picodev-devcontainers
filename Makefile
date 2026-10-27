@@ -10,7 +10,7 @@ VERSION ?= dev
 # Toolchain images (picodev-lab-workers/toolchains), built from this commit: fetched
 # from WORKERS_REPO (workers.mk), or toolchains/ at this commit in the public mirror.
 -include workers.mk
-WORKERS_REF ?= dfaca9620906525d4e76715027518b60586e8f02
+WORKERS_REF ?= 8559bde8b5f411f357e4e909c82cdbb944bbf86e
 WORKERS := .toolchains/$(WORKERS_REF)
 export VERSION
 

@@ -7,13 +7,13 @@
       "extensions": [
         "llvm-vs-code-extensions.vscode-clangd",
         "ms-vscode.vscode-serial-monitor",
-        "picodev.picodev-lab"
+        "picodev.picodev-ctf"
       ],
       "settings": {
         "clangd.arguments": ["--query-driver=/opt/arduino/packages/arduino/tools/avr-gcc/*/bin/avr-*"]
       }
     }
   }
-  // Linux, a board on USB: uncomment and name its port (docs: "Flasher une vraie carte").
+  // Linux, a board on USB: uncomment and name its port (README.md: "Flasher une vraie carte").
   // "runArgs": ["--device=/dev/ttyUSB0"]
 }

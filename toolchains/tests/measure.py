@@ -1,5 +1,5 @@
-"""Sizes and build times of the toolchain images, as AsciiDoc tables for
-docs/toolchains.adoc. Each example and board is built three ways:
+"""Sizes and build times of the toolchain images, as AsciiDoc tables.
+Each example and board is built three ways:
 cold (no cache at all), seed (the read-only seed of the image, what a first
 build gets) and warm (the same sources again with a cache volume)."""
 import json

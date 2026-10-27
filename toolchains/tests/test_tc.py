@@ -281,5 +281,32 @@ class ElfSize(unittest.TestCase):
             self.assertEqual(tc.elf_size(Path(fh.name)), {"text": 100, "data": 20, "bss": 300})
 
 
+
+class MergedHex(unittest.TestCase):
+    def test_erased_blocks_left_out(self):
+        # Arduino's merged image: erased flash, bootloader at 0x1000, partitions at 0x8000, app at
+        # 0x10000 then erased up to 4 MiB. esptool gets the written blocks at their addresses.
+        image = bytearray(b"\xff" * 4 * 2**20)
+        image[0x1000:0x1010] = b"B" * 16
+        image[0x8000:0x8C00] = b"P" * 0xC00
+        image[0x10000:0x12345] = b"A" * 0x2345
+        calls = []
+        with tempfile.TemporaryDirectory() as d:
+            merged = Path(d, "sketch.ino.merged.bin")
+            merged.write_bytes(image)
+            runner = type("Runner", (), {"run": lambda self, cmd, cwd, env: calls.append(cmd)})()
+            ctx = tc.Ctx("esp", "esp32-devkitc", {"idf_target": "esp32"}, "arduino", None, Path(d), {}, runner, {})
+            self.assertEqual(tc._merged_hex(ctx, merged), Path(d, "sketch.ino.merged.hex"))
+            (cmd,) = calls
+            self.assertEqual(cmd[:7], ["esptool.py", "--chip", "esp32", "merge_bin", "--format", "hex", "-o"])
+            pairs = list(zip(cmd[8::2], cmd[9::2]))
+            self.assertEqual([a for a, _ in pairs], ["0x1000", "0x8000", "0x10000"])
+            got = bytearray(b"\xff" * len(image))
+            for addr, part in pairs:
+                data = Path(part).read_bytes()
+                got[int(addr, 16):int(addr, 16) + len(data)] = data
+            self.assertEqual(got, image)
+
+
 if __name__ == "__main__":
     unittest.main()

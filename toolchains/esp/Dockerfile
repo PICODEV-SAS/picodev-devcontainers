@@ -65,17 +65,18 @@ RUN case "$TARGETARCH" in \
 COPY common/tc.py common/boards.json /opt/tc/
 COPY examples/ /opt/tc/examples/
 ENV TC_FAMILY=esp TC_IMAGE=picodev-lab-toolchain-esp@${VERSION}
+# Prewarm builds under arm64 emulation (CI) can pass the 900 s limit of a visitor build.
 RUN ln -s /opt/tc/tc.py /usr/local/bin/tc \
  && printf '{"esp-idf": "%s", "idf-targets": "%s", "arduino-cli": "%s", "core": "%s"}\n' \
       "$IDF_VERSION" "$IDF_TARGETS" "$ARDUINO_CLI_VERSION" "$ARDUINO_ESP32_CORE" > /opt/tc/versions.json \
  && mkdir -p /opt/tc/seed/ccache /cache && chown 10001:10001 /cache \
  && rm -rf $IDF_TOOLS_PATH/root_managed_components \
  && ln -s /tmp/idf-root-managed $IDF_TOOLS_PATH/root_managed_components \
- && CCACHE_REMOTE_STORAGE=file:/opt/tc/seed/ccache tc prewarm /opt/tc/examples \
+ && CCACHE_REMOTE_STORAGE=file:/opt/tc/seed/ccache TC_TIMEOUT=3600 tc prewarm /opt/tc/examples \
  && chmod -R a+rX /opt/tc && rm -rf /tmp/* \
  && useradd -u 10001 -M -d /tmp/work/home builder
 
-# Measured (docs/toolchains.adoc): CPUs a build uses well, peak memory in MiB.
+# Measured with `make measure`: CPUs a build uses well, peak memory in MiB.
 ARG CPU=4
 ARG MEMORY=2048
 LABEL org.opencontainers.image.title="picodev-lab-toolchain-esp" \

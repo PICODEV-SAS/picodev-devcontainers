@@ -10,7 +10,7 @@
         "espressif.esp-idf-extension",
         "llvm-vs-code-extensions.vscode-clangd",
         "ms-vscode.vscode-serial-monitor",
-        "picodev.picodev-lab"
+        "picodev.picodev-ctf"
       ],
       // The ESP-IDF extension (2.x) finds ESP-IDF through IDF_PATH and IDF_TOOLS_PATH of the image.
       "settings": {

@@ -1,5 +1,5 @@
 # Bare-metal ARM toolchain image: Arm GNU Toolchain (arm-none-eabi-gcc),
-# CMSIS 6 Core, and a minimal STM32Cube for the M2 boards (CMSIS device
+# CMSIS 6 Core, and a minimal STM32Cube for the lab's STM32 boards (CMSIS device
 # headers, startup files, HAL drivers of the F4, G0 and L5 series).
 # Build from toolchains/:
 #   docker buildx build -f arm/Dockerfile --platform linux/amd64,linux/arm64 .
@@ -63,7 +63,7 @@ RUN ln -s /opt/tc/tc.py /usr/local/bin/tc \
  && chmod -R a+rX /opt/tc && rm -rf /tmp/* \
  && useradd -u 10001 -M -d /tmp/work/home builder
 
-# Measured (docs/toolchains.adoc): CPUs a build uses well, peak memory in MiB.
+# Measured with `make measure`: CPUs a build uses well, peak memory in MiB.
 ARG CPU=1
 ARG MEMORY=64
 LABEL org.opencontainers.image.title="picodev-lab-toolchain-arm" \

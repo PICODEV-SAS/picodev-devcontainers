@@ -1,6 +1,7 @@
 """Tests of the toolchain images, through tc-docker (the guard): every
 example builds, the engines' examples build, the guard holds, the cache hits,
 the HTTP service works. Needs the images: `make test` builds them first."""
+import base64
 import io
 import json
 import os
@@ -23,7 +24,27 @@ TAG = os.environ.get("TC_TAG", "dev")
 ENGINES = Path(os.environ.get("TC_ENGINES_DIR", ROOT.parent / "engines"))
 # What each family must hand to its engine.
 FORMATS = {"avr": {"elf", "hex"}, "arm": {"elf", "bin", "hex"},
-           "zephyr": {"elf", "bin", "hex", "map"}, "esp": {"elf", "bin", "map"}}
+           "zephyr": {"elf", "bin", "hex", "map"}, "esp": {"elf", "bin", "hex", "map"}}
+
+
+ESP32_FLASH = 4 * 2**20
+
+
+def flash_from_hex(text):
+    """The 4 MiB flash image the emulation bench makes of an ESP32 Intel HEX (records 00, 01, 04)."""
+    flash, upper = bytearray(b"\xff" * ESP32_FLASH), 0
+    for line in text.split():
+        rec = bytes.fromhex(line[1:])
+        assert line[0] == ":" and sum(rec) & 0xFF == 0, line
+        n, addr, kind, data = rec[0], int.from_bytes(rec[1:3], "big"), rec[3], rec[4:-1]
+        if kind == 0:
+            at = upper + addr
+            flash[at:at + n] = data
+        elif kind == 4:
+            upper = int.from_bytes(data, "big") << 16
+        elif kind == 1:
+            break
+    return bytes(flash)
 
 
 def image(family):
@@ -95,6 +116,11 @@ class ExampleBuilds:
         self.assertEqual((rc, r["code"]), (0, "ok"), r["message"] + "\n" + r["log"][-3000:])
         self.assertLessEqual(FORMATS[family], set(r["artifacts"]), r["artifacts"].keys())
         self.assertGreater(r["size"]["text"], 0)
+        if family == "esp":
+            # The HEX the hub sends gives the emulation bench the same flash image as the merged bin.
+            art = {f: base64.b64decode(a["b64"]) for f, a in r["artifacts"].items() if f in ("hex", "bin")}
+            self.assertLess(len(art["hex"]), 4 * 2**20)
+            self.assertEqual(flash_from_hex(art["hex"].decode()), art["bin"].ljust(ESP32_FLASH, b"\xff"))
         return r
 
 

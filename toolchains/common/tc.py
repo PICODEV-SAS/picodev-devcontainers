@@ -404,6 +404,35 @@ def build_arduino(ctx: Ctx) -> dict:
         out["hex"] = ctx.build / f"{main.name}.hex"
     else:  # the full flash image (bootloader, partitions, app): what QEMU boots
         out["bin"] = ctx.build / f"{main.name}.merged.bin"
+        out["hex"] = _merged_hex(ctx, out["bin"])
+    return out
+
+
+def _merged_hex(ctx: Ctx, merged: Path) -> Path:
+    """Intel HEX of a merged flash image, at absolute addresses (what the hub sends an ESP32
+    bench). Arduino pads its image with erased flash to the full size: the 4 KiB blocks that are
+    all 0xFF are left out, as the bench fills the rest of the flash with 0xFF."""
+    data, block = merged.read_bytes(), 4096
+
+    def erased(at: int) -> bool:
+        return data[at:at + block].count(0xFF) == len(data[at:at + block])
+
+    parts, args, at = ctx.build / "hex-parts", [], 0
+    parts.mkdir(exist_ok=True)
+    while at < len(data):
+        if erased(at):
+            at += block
+            continue
+        end = at
+        while end < len(data) and not erased(end):
+            end += block
+        part = parts / f"{at:08x}.bin"
+        part.write_bytes(data[at:end])
+        args += [hex(at), part]
+        at = end
+    out = merged.with_suffix(".hex")
+    ctx.runner.run(["esptool.py", "--chip", ctx.spec["idf_target"], "merge_bin", "--format", "hex", "-o", out, *args],
+                   ctx.build, ctx.env)
     return out
 
 
@@ -498,7 +527,11 @@ def build_idf(ctx: Ctx) -> dict:
     merged = ctx.build / "merged.bin"
     ctx.runner.run(["esptool.py", "--chip", target, "merge_bin", "-o", merged, "@flash_args"],
                    ctx.build, env)
-    return {"elf": elf, "bin": merged, "map": elf.with_suffix(".map")}
+    # The same image as Intel HEX at absolute addresses (bootloader, partitions, app): what the hub sends.
+    merged_hex = ctx.build / "merged.hex"
+    ctx.runner.run(["esptool.py", "--chip", target, "merge_bin", "--format", "hex", "-o", merged_hex, "@flash_args"],
+                   ctx.build, env)
+    return {"elf": elf, "bin": merged, "hex": merged_hex, "map": elf.with_suffix(".map")}
 
 
 def build_zephyr(ctx: Ctx) -> dict:
